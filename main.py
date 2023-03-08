@@ -2,6 +2,7 @@
 import csv
 import os.path
 import random
+import time
 
 from sentence_transformers import SentenceTransformer, models, InputExample, losses, evaluation
 from torch import nn
@@ -18,6 +19,18 @@ if not os.path.exists(save_filepath):
     os.mkdir(save_filepath)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+
+def timer(func):
+    def wrapper(*args, **kw):
+        local_time = time.time()
+        res = func(*args, **kw)
+
+        msg = 'function {} runtime: {}s'.format(func.__name__, time.time() - local_time)
+        print(msg)
+        return res
+
+    return wrapper
 
 
 def load_data():
@@ -114,16 +127,6 @@ def generate_data():
 
 
 def load_dataset():
-    # with open(train_set_filepath, 'r') as f:
-    #     content = f.readlines()
-    #
-    # line_content = []
-    # for line in content:
-    #     lines = [x.strip() for x in line.strip().split('\t')]
-    #
-    #     lines[2] = float(lines[2])
-    #     line_content.append(lines)
-
     line_content = []
     with open(train_set_filepath, newline='') as csvfile:
         datas = csv.reader(csvfile)
@@ -144,6 +147,7 @@ def load_dataset():
     return train_dataset, test_dataset
 
 
+@timer
 def train_model():
     word_embedding_model = models.Transformer('bert-base-multilingual-cased', max_seq_length=256)
     pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
@@ -191,7 +195,6 @@ def main():
     # generate_negative_data(correlations_dict, topics_dict, content_dict)
 
     train_model()
-    pass
 
 
 if __name__ == '__main__':
