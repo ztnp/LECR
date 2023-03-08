@@ -1,13 +1,23 @@
 # -*- coding:utf-8 -*-
 import csv
+import os.path
 import random
-import pandas as pd
+
+from sentence_transformers import SentenceTransformer, models, InputExample, losses, evaluation
+from torch import nn
+from torch.utils.data import DataLoader
 
 positive_data_filepath = './positive_data.csv'
 
 negative_data_filepath = './negative_data.csv'
 
 train_set_filepath = './lecr_dataset.csv'
+
+save_filepath = './output_st'
+if not os.path.exists(save_filepath):
+    os.mkdir(save_filepath)
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def load_data():
@@ -87,25 +97,100 @@ def generate_negative_data(correlations_dict, topics_dict, content_dict):
 
 
 def generate_data():
-    positive_data_df = pd.read_csv(positive_data_filepath, header=None)
-    positive_data_df[2] = [random.uniform(0.75, 0.90) for _ in range(len(positive_data_df))]
+    csvfile_result = open(train_set_filepath, 'w', newline='')
+    writer = csv.writer(csvfile_result)
 
-    negative_data_df = pd.read_csv(negative_data_filepath, header=None)
-    negative_data_df[2] = [random.uniform(0, 0.40) for _ in range(len(negative_data_df))]
+    with open(positive_data_filepath, newline='') as csvfile:
+        datas = csv.reader(csvfile)
+        for lines in datas:
+            writer.writerow(lines + [str(random.uniform(0.75, 0.90))])
 
-    # result = positive_data_df.append(negative_data_df)
-    result = pd.concat([positive_data_df, negative_data_df])
-    result = result.sample(frac=1)
-    result.to_csv(train_set_filepath, header=False)
+    with open(negative_data_filepath, newline='') as csvfile:
+        datas = csv.reader(csvfile)
+        for lines in datas:
+            writer.writerow(lines + [str(random.uniform(0, 0.40))])
+
+    csvfile_result.close()
 
 
+def load_dataset():
+    # with open(train_set_filepath, 'r') as f:
+    #     content = f.readlines()
+    #
+    # line_content = []
+    # for line in content:
+    #     lines = [x.strip() for x in line.strip().split('\t')]
+    #
+    #     lines[2] = float(lines[2])
+    #     line_content.append(lines)
 
+    line_content = []
+    with open(train_set_filepath, newline='') as csvfile:
+        datas = csv.reader(csvfile)
+        # datas = list(datas)
+        for item in datas:
+            item[2] = float(item[2])
+            line_content.append(item)
+
+    for _ in range(20):
+        index = [i for i in range(len(line_content))]
+        random.shuffle(index)
+        line_content = [line_content[x] for x in index]
+
+    lf = len(line_content)
+    test_dataset = line_content[:int(lf * 0.02)]
+    train_dataset = line_content[int(lf * 0.02):]
+
+    return train_dataset, test_dataset
+
+
+def train_model():
+    word_embedding_model = models.Transformer('bert-base-multilingual-cased', max_seq_length=256)
+    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
+    dense_model = models.Dense(
+        in_features=pooling_model.get_sentence_embedding_dimension(),
+        out_features=512,
+        activation_function=nn.Tanh())
+    model = SentenceTransformer(
+        modules=[word_embedding_model, pooling_model, dense_model])
+
+    # load dataset
+    train_dataset, test_dataset = load_dataset()
+    train_examples = list(map(lambda x: InputExample(texts=[x[0], x[1]], label=float(x[2])), train_dataset))
+
+    train_dataloader = DataLoader(
+        train_examples,
+        shuffle=True,
+        batch_size=32,
+        num_workers=10)
+
+    # define loss function
+    train_loss = losses.CosineSimilarityLoss(model)
+
+    # define evaluator
+    sentences1, sentences2, scores = list(zip(*test_dataset))
+    # scores = [0 if z < 0.86 else 1 for z in scores]
+
+    evaluator = evaluation.EmbeddingSimilarityEvaluator(list(sentences1), list(sentences2), scores)
+
+    # train model
+    model.fit(
+        train_objectives=[(train_dataloader, train_loss)],
+        epochs=10,
+        # scheduler='warmupcosine',
+        warmup_steps=500,
+        evaluator=evaluator,
+        evaluation_steps=200,
+        output_path=save_filepath)
+    print('finish')
 
 
 def main():
     # correlations_dict, topics_dict, content_dict = load_dataset()
     # generate_positive_data(correlations_dict, topics_dict, content_dict)
     # generate_negative_data(correlations_dict, topics_dict, content_dict)
+
+    train_model()
     pass
 
 
