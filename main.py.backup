@@ -1,0 +1,59 @@
+# -*- coding:utf-8 -*-
+import pandas as pd
+from sentence_transformers import SentenceTransformer
+
+
+def load_dataset():
+    submission_filepath = './dataset/sample_submission.csv'
+    submission = pd.read_csv(submission_filepath)
+
+    correlations_filepath = './dataset/correlations.csv'
+    correlations = pd.read_csv(correlations_filepath)
+
+    contents_filepath = './dataset/content.csv'
+    contents = pd.read_csv(contents_filepath)
+    contents = contents.fillna('')
+    contents['title_len'] = contents.title.str.len()
+    contents = contents.sort_values(by='title_len', axis=0).reset_index(drop=True).drop(columns=['title_len'])
+
+    topics_filepath = './dataset/topics.csv'
+    topics = pd.read_csv(topics_filepath)
+    topics = topics.fillna('')
+    topics['title_len'] = topics.title.str.len()
+    topics = topics.sort_values(by='title_len', axis=0).reset_index(drop=True).drop(columns=['title_len'])
+
+    return contents, topics, submission, correlations
+
+
+def build_up_topics(topics):
+    topics['train_text'] = topics[['title', 'description']] \
+        .apply(' | '.join, axis=1) \
+        .str.slice(0, 64)
+    return topics[['id', 'train_text']]
+
+
+def build_up_contents(contents):
+    contents['train_text'] = contents[['title', 'description', 'text']] \
+        .apply(' | '.join, axis=1) \
+        .str.slice(0, 64)
+
+    return contents[['id', 'train_text']]
+
+
+def main():
+    contents, topics, submission, correlations = load_dataset()
+
+    topics_train = build_up_topics(topics)
+    contents_train = build_up_contents(contents)
+
+    ids_topics_dict = dict(zip(topics_train['id'], topics_train['train_text']))
+    topics_ids_dict = dict(zip(topics_train['train_text'], topics_train['id']))
+
+    ids_contents_dict = dict(zip(contents_train['id'], contents_train['train_text']))
+    contents_ids_dict = dict(zip(contents_train['train_text'], contents_train['id']))
+
+    model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+
+if __name__ == '__main__':
+    main()
