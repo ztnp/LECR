@@ -8,17 +8,26 @@ from sentence_transformers import SentenceTransformer, models, InputExample, los
 from torch import nn
 from torch.utils.data import DataLoader
 
-positive_data_filepath = './positive_data.csv'
+random_num = 12
 
-negative_data_filepath = './negative_data.csv'
+epochs = 10
+batch_size = 32
+num_workers = 10
+prefetch_factor = batch_size
+
+topics_filepath = './dataset/topics.csv'
+content_filepath = './dataset/content.csv'
+correlations_filepath = './dataset/correlations.csv'
 
 train_set_filepath = './lecr_dataset.csv'
+positive_data_filepath = './positive_data.csv'
+negative_data_filepath = './negative_data.csv'
 
 save_filepath = './output_st'
 if not os.path.exists(save_filepath):
     os.mkdir(save_filepath)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(random.randint(0, 3))
 
 
 def timer(func):
@@ -36,7 +45,6 @@ def timer(func):
 def load_data():
     # correlations
     correlations_dict = dict()
-    correlations_filepath = './dataset/correlations.csv'
     with open(correlations_filepath, 'r') as f:
         for line in f:
             lines = line.strip().split(',')
@@ -45,7 +53,6 @@ def load_data():
 
     # topics
     topics_dict = dict()
-    topics_filepath = './dataset/topics.csv'
     with open(topics_filepath, newline='') as csvfile:
         datas = csv.reader(csvfile)
         for lines in datas:
@@ -54,7 +61,6 @@ def load_data():
 
     # content
     content_dict = dict()
-    content_filepath = './dataset/content.csv'
     with open(content_filepath, newline='') as csvfile:
         datas = csv.reader(csvfile)
         for lines in datas:
@@ -79,7 +85,6 @@ def generate_positive_data(correlations_dict, topics_dict, content_dict):
 
 
 def generate_negative_data(correlations_dict, topics_dict, content_dict):
-    random_num = 12
     with open(negative_data_filepath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         content_ids = list(set(content_dict.keys()))
@@ -130,10 +135,10 @@ def load_dataset():
     line_content = []
     with open(train_set_filepath, newline='') as csvfile:
         datas = csv.reader(csvfile)
-        # datas = list(datas)
-        for item in datas:
-            item[2] = float(item[2])
-            line_content.append(item)
+        line_content = list(datas)
+        # for item in datas:
+        #     item[2] = float(item[2])
+        #     line_content.append(item)
 
     for _ in range(20):
         index = [i for i in range(len(line_content))]
@@ -165,8 +170,9 @@ def train_model():
     train_dataloader = DataLoader(
         train_examples,
         shuffle=True,
-        batch_size=32,
-        num_workers=10)
+        batch_size=batch_size,
+        num_workers=num_workers,
+        prefetch_factor=prefetch_factor)
 
     # define loss function
     train_loss = losses.CosineSimilarityLoss(model)
@@ -180,7 +186,7 @@ def train_model():
     # train model
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],
-        epochs=10,
+        epochs=epochs,
         # scheduler='warmupcosine',
         warmup_steps=500,
         evaluator=evaluator,
