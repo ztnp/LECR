@@ -15,6 +15,9 @@ batch_size = 32
 num_workers = 10
 prefetch_factor = batch_size
 
+warmup_steps = 200
+evaluation_steps = 10000
+
 topics_filepath = './dataset/topics.csv'
 content_filepath = './dataset/content.csv'
 correlations_filepath = './dataset/correlations.csv'
@@ -135,10 +138,10 @@ def load_dataset():
     line_content = []
     with open(train_set_filepath, newline='') as csvfile:
         datas = csv.reader(csvfile)
-        line_content = list(datas)
-        # for item in datas:
-        #     item[2] = float(item[2])
-        #     line_content.append(item)
+        # line_content = list(datas)
+        for item in datas:
+            item[2] = float(item[2])
+            line_content.append(item)
 
     for _ in range(20):
         index = [i for i in range(len(line_content))]
@@ -188,10 +191,11 @@ def train_model():
         train_objectives=[(train_dataloader, train_loss)],
         epochs=epochs,
         # scheduler='warmupcosine',
-        warmup_steps=500,
+        warmup_steps=warmup_steps,
         evaluator=evaluator,
-        evaluation_steps=200,
-        output_path=save_filepath)
+        evaluation_steps=evaluation_steps,
+        output_path=save_filepath,
+        save_best_model=True)
     print('finish')
 
 
