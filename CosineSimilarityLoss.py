@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 import csv
+import gc
 import os.path
 import random
 import time
@@ -8,15 +9,18 @@ from sentence_transformers import SentenceTransformer, models, InputExample, los
 from torch import nn
 from torch.utils.data import DataLoader
 
-random_num = 12
+random_num = 4
 
-epochs = 10
+epochs = 5
 batch_size = 32
+max_seq_length = 128
 num_workers = 10
 prefetch_factor = batch_size
 
 warmup_steps = 200
-evaluation_steps = 10000
+evaluation_steps = 2000
+
+pretrain_model_name = 'bert-base-multilingual-cased'
 
 topics_filepath = './dataset/topics.csv'
 content_filepath = './dataset/content.csv'
@@ -157,7 +161,7 @@ def load_dataset():
 
 @timer
 def train_model():
-    word_embedding_model = models.Transformer('bert-base-multilingual-cased', max_seq_length=256)
+    word_embedding_model = models.Transformer(pretrain_model_name, max_seq_length=max_seq_length)
     pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
     dense_model = models.Dense(
         in_features=pooling_model.get_sentence_embedding_dimension(),
@@ -200,9 +204,13 @@ def train_model():
 
 
 def main():
-    # correlations_dict, topics_dict, content_dict = load_data()
-    # generate_positive_data(correlations_dict, topics_dict, content_dict)
-    # generate_negative_data(correlations_dict, topics_dict, content_dict)
+    correlations_dict, topics_dict, content_dict = load_data()
+    generate_positive_data(correlations_dict, topics_dict, content_dict)
+    generate_negative_data(correlations_dict, topics_dict, content_dict)
+    generate_data()
+
+    del correlations_dict, topics_dict, content_dict
+    gc.collect()
 
     train_model()
 
